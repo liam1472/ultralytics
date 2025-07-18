@@ -124,10 +124,11 @@ def build_yolo_dataset(
 ):
     """Build and return a YOLO dataset based on configuration parameters."""
     dataset = YOLOMultiModalDataset if multi_modal else YOLODataset
+    batch_size = batch if batch is not None else 16
     return dataset(
         img_path=img_path,
         imgsz=cfg.imgsz,
-        batch_size=batch,
+        batch_size=batch_size,
         augment=mode == "train",  # augmentation
         hyp=cfg,  # TODO: probably add a get_hyps_from_cfg function
         rect=cfg.rect or rect,  # rectangular batches
@@ -154,12 +155,13 @@ def build_grounding(
     max_samples: int = 80,
 ):
     """Build and return a GroundingDataset based on configuration parameters."""
+    batch_size = batch if batch is not None else 16
     return GroundingDataset(
         img_path=img_path,
         json_file=json_file,
         max_samples=max_samples,
         imgsz=cfg.imgsz,
-        batch_size=batch,
+        batch_size=batch_size,
         augment=mode == "train",  # augmentation
         hyp=cfg,  # TODO: probably add a get_hyps_from_cfg function
         rect=cfg.rect or rect,  # rectangular batches

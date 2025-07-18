@@ -201,17 +201,19 @@ class v8DetectionLoss:
 
         m = model.model[-1]  # Detect() module
 
-        pos_weight = None
-        if hasattr(h, "cls_weights") and h.cls_weights is not None:
-            if isinstance(h.cls_weights, (list, tuple)):
-                pos_weight = torch.tensor(h.cls_weights, device=device, dtype=torch.float32)
-            elif h.cls_weights is True:
-                pos_weight = self._calculate_pos_weight(model, device)
-
-        self.bce = nn.BCEWithLogitsLoss(reduction="none", pos_weight=pos_weight)
         self.hyp = h
         self.stride = m.stride  # model strides
         self.nc = m.nc  # number of classes
+        
+        pos_weight = None
+        cls_weights = getattr(h, "cls_weights", None) if hasattr(h, "cls_weights") else h.get("cls_weights", None)
+        if cls_weights is not None:
+            if isinstance(cls_weights, (list, tuple)):
+                pos_weight = torch.tensor(cls_weights, device=device, dtype=torch.float32)
+            elif cls_weights is True:
+                pos_weight = self._calculate_pos_weight(model, device)
+
+        self.bce = nn.BCEWithLogitsLoss(reduction="none", pos_weight=pos_weight)
         self.no = m.nc + m.reg_max * 4
         self.reg_max = m.reg_max
         self.device = device
@@ -250,7 +252,7 @@ class v8DetectionLoss:
 
     def __call__(self, preds: Any, batch: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
         """Calculate the sum of the loss for box, cls and dfl multiplied by batch size."""
-        loss = torch.zeros(3, device=self.device)  # box, cls, dfl
+        loss = torch.zeros(3, device=self.device, dtype=torch.float32)  # box, cls, dfl
         feats = preds[1] if isinstance(preds, tuple) else preds
         pred_distri, pred_scores = torch.cat([xi.view(feats[0].shape[0], self.no, -1) for xi in feats], 2).split(
             (self.reg_max * 4, self.nc), 1
@@ -273,7 +275,7 @@ class v8DetectionLoss:
         # Pboxes
         pred_bboxes = self.bbox_decode(anchor_points, pred_distri)  # xyxy, (b, h*w, 4)
         # dfl_conf = pred_distri.view(batch_size, -1, 4, self.reg_max).detach().softmax(-1)
-        # dfl_conf = (dfl_conf.amax(-1).mean(-1) + dfl_conf.amax(-1).amin(-1)) / 2
+        # dfl_conf = (dfl_conf.amax(-1).mean(-1) + dfl_conf.amax(-1)) / 2
 
         _, target_bboxes, target_scores, fg_mask, _ = self.assigner(
             # pred_scores.detach().sigmoid() * 0.8 + dfl_conf.unsqueeze(-1) * 0.2,
@@ -288,8 +290,7 @@ class v8DetectionLoss:
         target_scores_sum = max(target_scores.sum(), 1)
 
         # Cls loss
-        # loss[1] = self.varifocal_loss(pred_scores, target_scores, target_labels) / target_scores_sum  # VFL way
-        loss[1] = self.bce(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum  # BCE
+        loss[1] = self.bce(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum
 
         # Bbox loss
         if fg_mask.sum():
@@ -297,25 +298,36 @@ class v8DetectionLoss:
             loss[0], loss[2] = self.bbox_loss(
                 pred_distri, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask
             )
+        else:
+            loss[0] = torch.tensor(0.0, device=self.device, dtype=torch.float32)
+            loss[2] = torch.tensor(0.0, device=self.device, dtype=torch.float32)
 
-        loss[0] *= self.hyp.box  # box gain
-        loss[1] *= self.hyp.cls  # cls gain
-        loss[2] *= self.hyp.dfl  # dfl gain
-
+        box_gain = self.hyp.get('box', 7.5) if isinstance(self.hyp, dict) else getattr(self.hyp, 'box', 7.5)
+        cls_gain = self.hyp.get('cls', 0.5) if isinstance(self.hyp, dict) else getattr(self.hyp, 'cls', 0.5)
+        dfl_gain = self.hyp.get('dfl', 1.5) if isinstance(self.hyp, dict) else getattr(self.hyp, 'dfl', 1.5)
+        
+        loss[0] *= float(box_gain)  # box gain
+        loss[1] *= float(cls_gain)  # cls gain
+        loss[2] *= float(dfl_gain)  # dfl gain
+        
         return loss * batch_size, loss.detach()  # loss(box, cls, dfl)
 
     def _calculate_pos_weight(self, model, device):
         """Calculate pos_weight from training dataset class distribution."""
+        fallback_weights = torch.ones(self.nc, device=device, dtype=torch.float32)
+        
         try:
             if hasattr(model, "trainer") and hasattr(model.trainer, "train_loader"):
                 from ultralytics.data.utils import calculate_class_weights
 
                 dataset = model.trainer.train_loader.dataset
                 class_weights = calculate_class_weights(dataset, self.nc)
-                return class_weights.to(device)
+                if class_weights is not None and len(class_weights) == self.nc and not torch.isnan(class_weights).any():
+                    return class_weights.to(device)
         except Exception:
             pass
-        return None
+        
+        return fallback_weights
 
 
 class v8SegmentationLoss(v8DetectionLoss):
@@ -402,10 +414,14 @@ class v8SegmentationLoss(v8DetectionLoss):
         else:
             loss[1] += (proto * 0).sum() + (pred_masks * 0).sum()  # inf sums may lead to nan loss
 
-        loss[0] *= self.hyp.box  # box gain
-        loss[1] *= self.hyp.box  # seg gain
-        loss[2] *= self.hyp.cls  # cls gain
-        loss[3] *= self.hyp.dfl  # dfl gain
+        box_gain = self.hyp.get('box', 7.5) if isinstance(self.hyp, dict) else getattr(self.hyp, 'box', 7.5)
+        cls_gain = self.hyp.get('cls', 0.5) if isinstance(self.hyp, dict) else getattr(self.hyp, 'cls', 0.5)
+        dfl_gain = self.hyp.get('dfl', 1.5) if isinstance(self.hyp, dict) else getattr(self.hyp, 'dfl', 1.5)
+        
+        loss[0] *= float(box_gain)  # box gain
+        loss[1] *= float(box_gain)  # seg gain
+        loss[2] *= float(cls_gain)  # cls gain
+        loss[3] *= float(dfl_gain)  # dfl gain
 
         return loss * batch_size, loss.detach()  # loss(box, cls, dfl)
 
@@ -572,11 +588,17 @@ class v8PoseLoss(v8DetectionLoss):
                 fg_mask, target_gt_idx, keypoints, batch_idx, stride_tensor, target_bboxes, pred_kpts
             )
 
-        loss[0] *= self.hyp.box  # box gain
-        loss[1] *= self.hyp.pose  # pose gain
-        loss[2] *= self.hyp.kobj  # kobj gain
-        loss[3] *= self.hyp.cls  # cls gain
-        loss[4] *= self.hyp.dfl  # dfl gain
+        box_gain = self.hyp.get('box', 7.5) if isinstance(self.hyp, dict) else getattr(self.hyp, 'box', 7.5)
+        pose_gain = self.hyp.get('pose', 12.0) if isinstance(self.hyp, dict) else getattr(self.hyp, 'pose', 12.0)
+        kobj_gain = self.hyp.get('kobj', 1.0) if isinstance(self.hyp, dict) else getattr(self.hyp, 'kobj', 1.0)
+        cls_gain = self.hyp.get('cls', 0.5) if isinstance(self.hyp, dict) else getattr(self.hyp, 'cls', 0.5)
+        dfl_gain = self.hyp.get('dfl', 1.5) if isinstance(self.hyp, dict) else getattr(self.hyp, 'dfl', 1.5)
+        
+        loss[0] *= float(box_gain)  # box gain
+        loss[1] *= float(pose_gain)  # pose gain
+        loss[2] *= float(kobj_gain)  # kobj gain
+        loss[3] *= float(cls_gain)  # cls gain
+        loss[4] *= float(dfl_gain)  # dfl gain
 
         return loss * batch_size, loss.detach()  # loss(box, cls, dfl)
 
@@ -765,9 +787,13 @@ class v8OBBLoss(v8DetectionLoss):
         else:
             loss[0] += (pred_angle * 0).sum()
 
-        loss[0] *= self.hyp.box  # box gain
-        loss[1] *= self.hyp.cls  # cls gain
-        loss[2] *= self.hyp.dfl  # dfl gain
+        box_gain = self.hyp.get('box', 7.5) if isinstance(self.hyp, dict) else getattr(self.hyp, 'box', 7.5)
+        cls_gain = self.hyp.get('cls', 0.5) if isinstance(self.hyp, dict) else getattr(self.hyp, 'cls', 0.5)
+        dfl_gain = self.hyp.get('dfl', 1.5) if isinstance(self.hyp, dict) else getattr(self.hyp, 'dfl', 1.5)
+        
+        loss[0] *= float(box_gain)  # box gain
+        loss[1] *= float(cls_gain)  # cls gain
+        loss[2] *= float(dfl_gain)  # dfl gain
 
         return loss * batch_size, loss.detach()  # loss(box, cls, dfl)
 
