@@ -1,30 +1,30 @@
-# YOLO Class Balancing Implementation
+# Class Balancing Implementation for Ultralytics YOLO
 
-## 🎯 Tổng quan
+## 🎯 Overview
 
-Tích hợp tính năng cân bằng lớp (class balancing) vào Ultralytics YOLO để xử lý datasets có class imbalance. Implementation bao gồm:
+This implementation integrates class balancing features into Ultralytics YOLO to handle datasets with class imbalance. The implementation includes:
 
-- **pos_weight** cho BCEWithLogitsLoss
-- **WeightedRandomSampler** cho DataLoader  
-- **cls_weights** parameter trong configuration
-- Comprehensive testing và validation
+- **pos_weight** for BCEWithLogitsLoss
+- **WeightedRandomSampler** for DataLoader  
+- **cls_weights** parameter in configuration
+- Comprehensive testing and validation
 
-## 📁 Cấu trúc Files
+## 📁 File Structure
 
 ### Core Implementation Files
 
-| File | Mô tả | Thay đổi chính |
-|------|-------|----------------|
-| `ultralytics/utils/loss.py` | Loss function với pos_weight | Thêm pos_weight vào BCEWithLogitsLoss |
-| `ultralytics/data/build.py` | DataLoader với WeightedRandomSampler | Tích hợp weighted sampling |
-| `ultralytics/data/utils.py` | Utility functions | Thêm calculate_class_weights() |
-| `ultralytics/cfg/default.yaml` | Default configuration | Thêm cls_weights parameter |
-| `ultralytics/engine/trainer.py` | Training engine | Tích hợp class balancing logic |
+| File | Description | Key Changes |
+|------|-------------|-------------|
+| `ultralytics/utils/loss.py` | Loss function with pos_weight | Added pos_weight to BCEWithLogitsLoss |
+| `ultralytics/data/build.py` | DataLoader with WeightedRandomSampler | Integrated weighted sampling |
+| `ultralytics/data/utils.py` | Utility functions | Added calculate_class_weights() |
+| `ultralytics/cfg/default.yaml` | Default configuration | Added cls_weights parameter |
+| `ultralytics/engine/trainer.py` | Training engine | Integrated class balancing logic |
 
 ### Test Files
 
-| File | Mục đích | Cách sử dụng |
-|------|----------|--------------|
+| File | Purpose | Usage |
+|------|---------|-------|
 | `tests/test_class_balancing.py` | Unit tests | `python -m pytest tests/test_class_balancing.py` |
 | `example_class_balancing.py` | Usage examples | `python example_class_balancing.py` |
 | `test_car_detect_with_per_class_analysis.py` | Per-class metrics analysis | `python test_car_detect_with_per_class_analysis.py` |
@@ -33,18 +33,18 @@ Tích hợp tính năng cân bằng lớp (class balancing) vào Ultralytics YOL
 
 ### Analysis Files
 
-| File | Mô tả |
-|------|-------|
+| File | Description |
+|------|-------------|
 | `model_comparison_analysis.md` | Detailed comparison results |
 | `trained_weights/baseline_weights.pt` | Baseline model weights |
 | `trained_weights/balanced_weights.pt` | Balanced model weights |
 
-## 🚀 Cài đặt và Sử dụng
+## 🚀 Installation and Usage
 
-### 1. Cài đặt từ GitHub
+### 1. Installation from GitHub
 
 ```bash
-# Clone fork với class balancing features
+# Clone fork with class balancing features
 git clone https://github.com/liam1472/ultralytics.git
 cd ultralytics
 git checkout devin/1752816246-class-balancing
@@ -53,13 +53,13 @@ git checkout devin/1752816246-class-balancing
 pip install -e .
 ```
 
-### 2. Hoặc install trực tiếp
+### 2. Or install directly
 
 ```bash
 pip install git+https://github.com/liam1472/ultralytics.git@devin/1752816246-class-balancing
 ```
 
-## 💡 Cách sử dụng
+## 💡 How to Use
 
 ### Basic Usage
 
@@ -72,7 +72,7 @@ model = YOLO('yolo11n.yaml')
 # Auto class balancing
 results = model.train(
     data='your_dataset/data.yaml',
-    cls_weights=True,        # Tự động tính class weights
+    cls_weights=True,        # Automatically calculate class weights
     epochs=50,
     imgsz=640,
     batch=16
@@ -82,7 +82,7 @@ results = model.train(
 ### Manual Class Weights
 
 ```python
-# Specify custom weights cho từng class
+# Specify custom weights for each class
 model.train(
     data='your_dataset/data.yaml',
     cls_weights=[0.8, 1.2, 1.5, 1.0, 2.0],  # Custom weights
@@ -98,7 +98,7 @@ task: detect
 mode: train
 data: your_dataset/data.yaml
 epochs: 50
-cls_weights: true  # hoặc [0.8, 1.2, 1.5, 1.0, 2.0]
+cls_weights: true  # or [0.8, 1.2, 1.5, 1.0, 2.0]
 imgsz: 640
 batch: 16
 ```
@@ -108,22 +108,22 @@ model = YOLO('yolo11n.yaml')
 model.train(cfg='config.yaml')
 ```
 
-## 🧪 Testing và Validation
+## 🧪 Testing and Validation
 
-### 1. Chạy Unit Tests
+### 1. Run Unit Tests
 
 ```bash
 # Test basic functionality
 python -m pytest tests/test_class_balancing.py -v
 
-# Test với specific dataset
+# Test with specific dataset
 python test_simple_balancing.py
 ```
 
 ### 2. Example Usage
 
 ```bash
-# Chạy examples
+# Run examples
 python example_class_balancing.py
 ```
 
@@ -140,7 +140,7 @@ python test_validation_overfitting.py
 python analyze_motorbike_overfitting.py
 ```
 
-## 📊 Kết quả Test thực tế
+## 📊 Real Test Results
 
 ### Dataset: car-detect-2 (Class Imbalance 66.4:1)
 
@@ -167,32 +167,32 @@ python analyze_motorbike_overfitting.py
 | Baseline | 0.1558 | 0.1558 | Low |
 | Balanced | 0.1523 | 0.1523 | **SEVERE** |
 
-**Motorbike class**: 0.0000 mAP50 trên validation set → **Severe overfitting**
+**Motorbike class**: 0.0000 mAP50 on validation set → **Severe overfitting**
 
-## ⚠️ Limitations và Caveats
+## ⚠️ Limitations and Caveats
 
-### 🚨 Khi KHÔNG nên sử dụng
+### 🚨 When NOT to use
 
 1. **Extreme imbalance (>50:1)**
-   - Ví dụ: car-detect-2 với 66.4:1 ratio
-   - Risk: Severe overfitting cho minority classes
+   - Example: car-detect-2 with 66.4:1 ratio
+   - Risk: Severe overfitting for minority classes
 
-2. **Minority classes có <20 samples**
-   - Model sẽ memorize thay vì học pattern
-   - Validation performance sẽ rất kém
+2. **Minority classes with <20 samples**
+   - Model will memorize instead of learning patterns
+   - Validation performance will be very poor
 
-3. **Dataset quá nhỏ (<500 images)**
-   - Không đủ data để học generalization
-   - High risk overfitting
+3. **Dataset too small (<500 images)**
+   - Not enough data to learn generalization
+   - High risk of overfitting
 
-### ✅ Khi NÊN sử dụng
+### ✅ When to use
 
-1. **Moderate imbalance (5:1 đến 20:1)**
-   - Ví dụ: 1000 cars, 200 trucks, 100 buses
+1. **Moderate imbalance (5:1 to 20:1)**
+   - Example: 1000 cars, 200 trucks, 100 buses
    - Expected: Sustainable improvement
 
-2. **Minority classes có >50 samples**
-   - Đủ data để học pattern thực sự
+2. **Minority classes with >50 samples**
+   - Enough data to learn real patterns
    - Lower overfitting risk
 
 3. **Production datasets**
@@ -205,7 +205,7 @@ python analyze_motorbike_overfitting.py
 ### 1. Dataset Assessment
 
 ```python
-# Kiểm tra dataset trước khi train
+# Check dataset before training
 def assess_dataset_suitability(data_yaml):
     # Analyze class distribution
     # Check imbalance ratio
@@ -216,14 +216,14 @@ def assess_dataset_suitability(data_yaml):
 ### 2. Conservative Approach
 
 ```python
-# Thay vì cls_weights=True (auto), dùng manual weights
+# Instead of cls_weights=True (auto), use manual weights
 cls_weights = [0.8, 1.2, 1.5, 1.0, 1.8]  # Conservative values
 ```
 
 ### 3. Always Validate
 
 ```python
-# Luôn test trên separate validation set
+# Always test on separate validation set
 model.train(data='train_data.yaml', cls_weights=True, epochs=50)
 val_results = model.val(data='val_data.yaml')
 ```
@@ -303,34 +303,34 @@ class BCEWithLogitsLoss(nn.Module):
 
 ### 1. Extreme Imbalance Overfitting
 
-**Problem**: Với datasets có extreme imbalance (>50:1), minority classes bị severe overfitting.
+**Problem**: With datasets having extreme imbalance (>50:1), minority classes suffer severe overfitting.
 
 **Solution**: 
-- Sử dụng conservative manual weights
-- Tăng data augmentation
+- Use conservative manual weights
+- Increase data augmentation
 - Monitor validation performance
 
 ### 2. Small Minority Classes
 
-**Problem**: Classes với <20 samples không học được generalization.
+**Problem**: Classes with <20 samples cannot learn generalization.
 
 **Solution**:
-- Collect thêm data cho minority classes
-- Sử dụng data augmentation techniques
+- Collect more data for minority classes
+- Use data augmentation techniques
 - Consider class merging/grouping
 
 ### 3. Validation Performance Gap
 
-**Problem**: Training performance cao nhưng validation performance thấp.
+**Problem**: High training performance but low validation performance.
 
 **Solution**:
-- Always validate trên separate test set
+- Always validate on separate test set
 - Use cross-validation
 - Monitor overfitting indicators
 
 ## 🔄 Development History
 
-### Major Changes từ Ultralytics gốc:
+### Major Changes from Original Ultralytics:
 
 1. **Loss Function Enhancement**
    - Added pos_weight support to BCEWithLogitsLoss
@@ -342,18 +342,18 @@ class BCEWithLogitsLoss(nn.Module):
 
 3. **Configuration Extension**
    - Added cls_weights parameter
-   - Support both auto và manual weights
+   - Support both auto and manual weights
 
 4. **Training Pipeline Integration**
-   - Seamless integration với existing workflow
+   - Seamless integration with existing workflow
    - Backward compatibility maintained
 
-## 📞 Support và Contribution
+## 📞 Support and Contribution
 
-### Issues và Bugs
+### Issues and Bugs
 
-- Report issues trên GitHub repository
-- Include dataset characteristics và error logs
+- Report issues on GitHub repository
+- Include dataset characteristics and error logs
 - Provide reproducible examples
 
 ### Contributing
@@ -361,7 +361,7 @@ class BCEWithLogitsLoss(nn.Module):
 - Follow existing code style
 - Add comprehensive tests
 - Update documentation
-- Test với multiple datasets
+- Test with multiple datasets
 
 ## 📚 References
 
@@ -375,4 +375,4 @@ class BCEWithLogitsLoss(nn.Module):
 **Requested by**: @liam1472  
 **Devin run**: https://app.devin.ai/sessions/5255c3ad6e2e4096b28e9948433c0ecd
 
-**⚠️ Disclaimer**: Effectiveness claims dựa trên limited testing với 1 dataset (car-detect-2). Cần comprehensive validation với multiple datasets để confirm general effectiveness.
+**⚠️ Disclaimer**: Effectiveness claims are based on limited testing with 1 dataset (car-detect-2). Comprehensive validation with multiple datasets is needed to confirm general effectiveness.
