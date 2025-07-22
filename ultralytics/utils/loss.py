@@ -209,7 +209,8 @@ class v8DetectionLoss:
         cls_weights = getattr(h, "cls_weights", None) if hasattr(h, "cls_weights") else h.get("cls_weights", None)
         if cls_weights is not None:
             if isinstance(cls_weights, (list, tuple)):
-                pos_weight = torch.tensor(cls_weights, device=device, dtype=torch.float32)
+                raw_weights = torch.tensor(cls_weights, device=device, dtype=torch.float32)
+                pos_weight = self._validate_and_clip_weights(raw_weights)
             elif cls_weights is True:
                 pos_weight = self._calculate_pos_weight(model, device)
 
@@ -323,11 +324,37 @@ class v8DetectionLoss:
                 dataset = model.trainer.train_loader.dataset
                 class_weights = calculate_class_weights(dataset, self.nc)
                 if class_weights is not None and len(class_weights) == self.nc and not torch.isnan(class_weights).any():
-                    return class_weights.to(device)
+                    conservative_weights = self._make_conservative_weights(class_weights.to(device))
+                    return conservative_weights
         except Exception:
             pass
         
         return fallback_weights
+    
+    def _validate_and_clip_weights(self, weights):
+        """Validate and clip manual class weights to prevent extreme values."""
+        max_weight = 3.0
+        clipped_weights = torch.clamp(weights, min=0.1, max=max_weight)
+        
+        if not torch.equal(weights, clipped_weights):
+            original_max = torch.max(weights).item()
+            clipped_max = torch.max(clipped_weights).item()
+            print(f"⚠️  WARNING: Class weights clipped from max {original_max:.1f} to {clipped_max:.1f}")
+            print(f"   Original: {weights.tolist()}")
+            print(f"   Clipped:  {clipped_weights.tolist()}")
+            print(f"   Extreme weights can hurt majority class performance!")
+        
+        return clipped_weights
+    
+    def _make_conservative_weights(self, weights):
+        """Make auto-calculated weights more conservative to prevent overcompensation."""
+        conservative_weights = torch.sqrt(weights)
+        
+        max_weight = 2.5
+        conservative_weights = torch.clamp(conservative_weights, min=0.5, max=max_weight)
+        
+        print(f"🔧 Auto-calculated conservative weights: {conservative_weights.tolist()}")
+        return conservative_weights
 
 
 class v8SegmentationLoss(v8DetectionLoss):

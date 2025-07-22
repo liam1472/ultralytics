@@ -77,6 +77,13 @@ def calculate_class_weights(dataset, nc):
         return torch.ones(nc)
 
     class_weights = total_samples / (nc * class_counts + 1e-6)
+    
+    print(f"📊 Class distribution analysis:")
+    for i in range(nc):
+        if class_counts[i] > 0:
+            percentage = (class_counts[i] / total_samples) * 100
+            print(f"   Class {i}: {int(class_counts[i])} samples ({percentage:.1f}%) -> weight {class_weights[i]:.3f}")
+    
     return class_weights
 
 
