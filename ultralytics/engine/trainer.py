@@ -315,6 +315,19 @@ class BaseTrainer:
 
                 temp_dataset = self.build_dataset(self.data["train"], mode="train")
                 cls_weights = calculate_class_weights(temp_dataset, getattr(self.model.model[-1], "nc", 80))
+                
+                if cls_weights is not None:
+                    max_weight = torch.max(cls_weights)
+                    min_weight = torch.min(cls_weights)
+                    weight_ratio = max_weight / min_weight
+                    
+                    if weight_ratio > 20.0:
+                        print(f"🛡️  EXTREME IMBALANCE PROTECTION ACTIVATED!")
+                        print(f"   Weight ratio: {weight_ratio:.1f}:1 exceeds safe threshold (20:1)")
+                        print(f"   Automatically disabling cls_weights to protect performance")
+                        print(f"   Using baseline training instead (cls_weights=None)")
+                        cls_weights = None
+                        use_weighted_sampler = False
 
         self.train_loader = self.get_dataloader(
             self.data["train"],

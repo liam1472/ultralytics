@@ -78,11 +78,24 @@ def calculate_class_weights(dataset, nc):
 
     class_weights = total_samples / (nc * class_counts + 1e-6)
     
+    max_class_ratio = torch.max(class_counts) / torch.min(class_counts[class_counts > 0])
+    majority_class_percentage = torch.max(class_counts) / total_samples * 100
+    
     print(f"📊 Class distribution analysis:")
     for i in range(nc):
         if class_counts[i] > 0:
             percentage = (class_counts[i] / total_samples) * 100
             print(f"   Class {i}: {int(class_counts[i])} samples ({percentage:.1f}%) -> weight {class_weights[i]:.3f}")
+    
+    print(f"📈 Imbalance ratio: {max_class_ratio:.1f}:1")
+    print(f"📈 Majority class: {majority_class_percentage:.1f}% of dataset")
+    
+    if max_class_ratio > 15.0 and majority_class_percentage > 90.0:
+        print(f"⚠️  EXTREME IMBALANCE DETECTED!")
+        print(f"   Ratio: {max_class_ratio:.1f}:1, Majority: {majority_class_percentage:.1f}%")
+        print(f"   cls_weights may hurt overall performance!")
+        print(f"   Consider using cls_weights=None (baseline) instead.")
+        print(f"   Alternative: Try manual weights like [1.0, 1.2] for mild adjustment.")
     
     return class_weights
 

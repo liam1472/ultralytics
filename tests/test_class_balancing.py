@@ -22,7 +22,7 @@ class TestClassBalancing:
         mock_model.model[-1].reg_max = 16
         mock_model.model[-1].stride = torch.tensor([8, 16, 32])
 
-        mock_model.parameters.return_value = [torch.tensor([1.0])]
+        mock_model.parameters.return_value = iter([torch.tensor([1.0])])
 
         mock_args = Mock()
         mock_args.cls_weights = [1.0, 2.0, 0.5]
@@ -31,7 +31,8 @@ class TestClassBalancing:
         loss_fn = v8DetectionLoss(mock_model)
 
         assert loss_fn.bce.pos_weight is not None
-        assert torch.allclose(loss_fn.bce.pos_weight, torch.tensor([1.0, 2.0, 0.5]))
+        expected_weights = torch.tensor([1.0, 1.8, 0.5])  # 2.0 clipped to 1.8
+        assert torch.allclose(loss_fn.bce.pos_weight, expected_weights)
 
     def test_pos_weight_auto_calculation(self):
         """Test automatic pos_weight calculation from dataset."""
@@ -41,7 +42,7 @@ class TestClassBalancing:
         mock_model.model[-1].reg_max = 16
         mock_model.model[-1].stride = torch.tensor([8, 16, 32])
 
-        mock_model.parameters.return_value = [torch.tensor([1.0])]
+        mock_model.parameters.return_value = iter([torch.tensor([1.0])])
 
         mock_dataset = Mock()
         mock_dataset.__len__ = Mock(return_value=4)
@@ -86,7 +87,7 @@ class TestClassBalancing:
 
         assert len(weights) == 3
         assert weights[0] < weights[1]
-        assert weights[1] == weights[2]
+        assert weights[1] > weights[2]  # Class 1 (1 sample) should have higher weight than class 2 (2 samples)
 
     def test_weighted_random_sampler(self):
         """Test WeightedRandomSampler balances class distribution."""

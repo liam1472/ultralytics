@@ -333,7 +333,7 @@ class v8DetectionLoss:
     
     def _validate_and_clip_weights(self, weights):
         """Validate and clip manual class weights to prevent extreme values."""
-        max_weight = 3.0
+        max_weight = 1.8
         clipped_weights = torch.clamp(weights, min=0.1, max=max_weight)
         
         if not torch.equal(weights, clipped_weights):
@@ -350,7 +350,7 @@ class v8DetectionLoss:
         """Make auto-calculated weights more conservative to prevent overcompensation."""
         conservative_weights = torch.sqrt(weights)
         
-        max_weight = 2.5
+        max_weight = 1.5
         conservative_weights = torch.clamp(conservative_weights, min=0.5, max=max_weight)
         
         print(f"🔧 Auto-calculated conservative weights: {conservative_weights.tolist()}")
